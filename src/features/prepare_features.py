@@ -9,7 +9,7 @@ from itertools import chain
 
 df_items = pd.read_csv('data/raw/items.csv')
 df_categories = pd.read_csv('data/raw/item_categories.csv')
-df_categories['big_category'] = np.vstack(df_categories['item_category_name'].str.split())[:, 0]
+df_categories['big_category'] = df_categories['item_category_name'].str.split().apply(lambda x: x[0])
 
 
 def tolist(agg): return [agg] if type(agg) == str else list(agg)
