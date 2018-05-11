@@ -25,12 +25,13 @@ def create_cumdata(key_cols):
 
     df = pd.read_hdf('data/processed/train/total.hdf')
 
-    df_items = pd.read_csv('data/raw/items.csv')
-    df_categories = pd.read_csv('data/raw/item_categories.csv')
-    df_categories['big_category'] = df_categories['item_category_name'].str.split().apply(lambda x: x[0])
-    df = pd.merge(df, df_items, on='item_id')
-    df = pd.merge(df, df_categories, on='item_category_id')
+    df_items = pd.read_hdf('data/processed/dimensions/items.hdf')
+    df_categories = pd.read_hdf('data/processed/dimensions/item_categories.hdf')
+    df_shops = pd.read_hdf('data/processed/dimensions/shops.hdf')
 
+    df = pd.merge(df, df_items, on='item_id', copy=False)
+    df = pd.merge(df, df_categories, on='item_category_id', copy=False)
+    df = pd.merge(df, df_shops, on='shop_id', copy=False)
 
     df['date'] = pd.to_datetime(df['year'].astype(str) + '-' + df['month'].astype(str) + '-1')
     df_gb_key = df.groupby(key_cols)['date'].agg(['min', 'max'])
@@ -52,13 +53,18 @@ def create_cumdata(key_cols):
 
     df_reindexed.to_hdf('data/processed/cumdata.hdf', '_'.join(key_cols))
 
-keys = [
-    ['shop_id'],
-    ['item_id'], ['item_category_id'], ['big_category'],
-    ['shop_id', 'item_id'],
-    ['shop_id', 'item_category_id'],
-    ['shop_id', 'big_category']
+
+from itertools import product
+
+raw_keys = [
+    ['shop_id', 'mall', 'city'],
+    ['item_id', 'item_category_id', 'first_big_category', 'last_big_category']
 ]
+
+keys = [
+    [key] for key_sets in raw_keys for key in key_sets
+] + list(map(list, product(*raw_keys)))
+
 for key_cols in keys:
     print('_'.join(key_cols))
     create_cumdata(key_cols)

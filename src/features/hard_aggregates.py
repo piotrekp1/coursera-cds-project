@@ -1,9 +1,22 @@
 import pandas as pd
 from datetime import datetime
 
-df_items = pd.read_csv('data/raw/items.csv')
-df_categories = pd.read_csv('data/raw/item_categories.csv')
-df_categories['big_category'] = df_categories['item_category_name'].str.split().apply(lambda x: x[0])
+
+
+df_items = pd.read_hdf('data/processed/dimensions/items.hdf')
+df_categories = pd.read_hdf('data/processed/dimensions/item_categories.hdf')
+df_shops = pd.read_hdf('data/processed/dimensions/shops.hdf')
+
+from itertools import product
+
+raw_keys = [
+    ['shop_id', 'mall', 'city'],
+    ['item_id', 'item_category_id', 'first_big_category', 'last_big_category']
+]
+
+keys = [
+           [key] for key_sets in raw_keys for key in key_sets
+       ] + list(map(list, product(*raw_keys)))
 
 
 def aggregates_dates():
@@ -119,16 +132,10 @@ def get_aggregates(df_ids):
             aggregates will be calculated for these rows
 
     """
-    df_ids = pd.merge(df_ids, df_items, on='item_id')
-    df_ids = pd.merge(df_ids, df_categories, on='item_category_id')
+    df_ids = pd.merge(df_ids, df_items, on='item_id', copy=False)
+    df_ids = pd.merge(df_ids, df_categories, on='item_category_id', copy=False)
+    df_ids = pd.merge(df_ids, df_shops, on='shop_id', copy=False)
 
-    keys = [
-        ['shop_id'],
-        ['item_id'], ['item_category_id'], ['big_category'],
-        ['shop_id', 'item_id'],
-        ['shop_id', 'item_category_id'],
-        ['shop_id', 'big_category']
-    ]
     dates = aggregates_dates()
     for key in keys:
         df_cumdata = pd.read_hdf('data/processed/cumdata.hdf', '_'.join(key))
@@ -142,4 +149,34 @@ def get_aggregates(df_ids):
             df_ids = count_diff(df_key_cum, df_ids, key, date, aggr_name)
         print('key: ', key)
         print('ids_nulls: ', df_ids.isnull().sum().sum())
+    return df_ids
+
+
+def weekly_aggregates_for_key(df_ids, keys):
+    df_train_raw = pd.read_csv('data/raw/sales_train.csv', parse_dates=['date'])
+    df_train_raw = pd.merge(df_train_raw, df_items, on='item_id', copy=False)
+    df_train_raw = pd.merge(df_train_raw, df_categories, on='item_category_id', copy=False)
+    df_train_raw = pd.merge(df_train_raw, df_shops, on='shop_id', copy=False)
+
+
+    df_ids['date'] = pd.to_datetime(df_ids['year'].astype(str) + '-' + df_ids['month'].astype(str) + '-1')
+    df_train_raw['next_month'] = df_train_raw['date'] + pd.DateOffset(months=1)
+    df_train_raw['next_month_date'] = pd.to_datetime(
+    df_train_raw['next_month'].dt.year.astype(str) + '-' + df_train_raw['next_month'].dt.month.astype(str) + '-1'
+)
+    df_train_raw['month_end_date'] = df_train_raw['next_month_date'] - pd.DateOffset(days=7)
+    df_train_raw = df_train_raw[df_train_raw['date'] >= df_train_raw['month_end_date']]
+    weekly_sales = df_train_raw.groupby(keys + ['next_month_date'], as_index=False)['item_cnt_day'].sum().rename(
+        columns={'item_cnt_day' : 'count_last_week_' + '_'.join(keys)}
+    )
+    df_train_weekly = pd.merge(df_ids, weekly_sales,
+             left_on=keys + ['date'],
+             right_on=keys + ['next_month_date'],
+             how='left'
+            ).drop('next_month_date', axis=1).fillna(0)
+    return df_train_weekly
+
+def weekly_aggregates(df_ids):
+    for key in keys:
+        df_ids = weekly_aggregates_for_key(df_ids, key)
     return df_ids
