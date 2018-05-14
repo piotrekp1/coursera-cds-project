@@ -142,12 +142,12 @@ def get_aggregates(df_ids):
 
         df_key_cum = create_key_cumcount_df(df_cumdata, key)
 
+        print('key: ', key)
         # calc aggregates
         for date_name, date in dates.items():
             aggr_name = 'count_aggr_' + date_name + '_' + '_'.join(key)
-            print(df_ids.isnull().sum().sum())
+            print(date_name, ' nulls: ', df_ids.isnull().sum().sum())
             df_ids = count_diff(df_key_cum, df_ids, key, date, aggr_name)
-        print('key: ', key)
         print('ids_nulls: ', df_ids.isnull().sum().sum())
     return df_ids
 
@@ -177,6 +177,9 @@ def weekly_aggregates_for_key(df_ids, keys):
     return df_train_weekly
 
 def weekly_aggregates(df_ids):
+    print('----------')
+    print('WEEKLY AGGREGATES')
     for key in keys:
+        print(key)
         df_ids = weekly_aggregates_for_key(df_ids, key)
     return df_ids

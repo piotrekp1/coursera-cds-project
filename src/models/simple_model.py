@@ -1,6 +1,7 @@
 import pandas as pd
 from math import sqrt
 from datetime import datetime
+from sklearn import preprocessing
 import pickle
 
 import xgboost as xgb
@@ -11,7 +12,7 @@ from sklearn.metrics import r2_score, mean_squared_error
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import StandardScaler
 
-df = pd.read_hdf('data/processed/train/aggr_train_manual_feat.hdf')
+df = pd.read_hdf('data/processed/train/aggr_train_zeros.hdf')
 # df = pd.read_hdf('data/processed/train/aggr_train_zeros.hdf')
 df_valid = pd.read_hdf('data/processed/validation/aggr_valid.hdf')
 
@@ -28,22 +29,31 @@ def X(df):
     df['day_of_year'] = df['date'].dt.dayofyear
     date_cols = [
         'month', 'year',
-        'fridays', 'day_of_year'
+        'fridays', 'day_of_year', 'days_in_a_month'
     ]
     one_hot_cols = [
         'shop_id', 'mall', 'city',
         'item_id', 'item_category_id', 'first_big_category', 'last_big_category',
     ]
+    additional = [
+        'expected_sales'
+    ]
+
     df_X = df[
         [
             col for col in df.columns
             if col.startswith('count')
         ]
-        + date_cols
+        + date_cols + one_hot_cols + additional
         ]
 
     # df_X = pd.get_dummies(df_X, columns=one_hot_cols)
     # df_X = pd.get_dummies(df_X, columns=one_hot_cols + date_cols)
+    for f in df_X.columns:
+        if df_X[f].dtype == 'object':
+            lbl = preprocessing.LabelEncoder()
+            lbl.fit(list(df_X[f].values))
+            df_X[f] = lbl.transform(list(df_X[f].values))
     return df_X
 
 
@@ -87,6 +97,8 @@ scaler = StandardScaler()
 # model = LinearRegression()
 # model = RandomForestRegressor(n_estimators=60, n_jobs=-1, max_depth=6)
 # model.fit(df_X_train, df_y_train)
+
+
 
 params = {'max_depth': 6, 'eta': 0.1, 'silent': 1}
 num_round = 100
